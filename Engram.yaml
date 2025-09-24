@@ -1,0 +1,73 @@
+apiVersion: catalog.bubu.sh/v1alpha1
+kind: EngramTemplate
+metadata:
+  name: openai-chat
+spec:
+  version: "1.0.0"
+  description: "A conversational LLM engram using OpenAI's chat models."
+  image: openai-chat:latest
+  supportedModes:
+    - deployment
+    - job
+
+  configSchema:
+    type: object
+    properties:
+      model:
+        type: string
+        description: "The OpenAI chat model to use (e.g., gpt-4, gpt-3.5-turbo)."
+        default: "gpt-3.5-turbo"
+      temperature:
+        type: number
+        description: "Controls randomness in the model's output."
+        default: 0.7
+      systemPrompt:
+        type: string
+        description: "The initial system message to guide the model's behavior."
+        default: "You are a helpful assistant."
+
+  inputSchema:
+    type: object
+    properties:
+      text:
+        type: string
+        description: "The user's latest message."
+        required: true
+      history:
+        type: array
+        items:
+          type: object
+          properties:
+            role:
+              type: string
+              enum: ["user", "assistant"]
+            content:
+              type: string
+
+  outputSchema:
+    type: object
+    properties:
+      text:
+        type: string
+        description: "The model's text response."
+      actionRequest:
+        type: object
+        description: "An optional structured request to trigger another story."
+        properties:
+          storyName:
+            type: string
+          inputs:
+            type: object
+            
+  secretSchema:
+    # This logical name 'openai' is used in the Engram resource to map to a Kubernetes secret.
+    openai:
+      required: true
+      description: "API key for OpenAI authentication."
+      # Mount the secret's keys as environment variables.
+      mountType: "env"
+      # The key 'API_KEY' from the k8s secret will be available as 'OPENAI_API_KEY' in the pod.
+      envPrefix: "OPENAI_"
+      # The controller expects the k8s secret to have a key named 'API_KEY'.
+      expectedKeys:
+        - "API_KEY"
