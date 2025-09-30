@@ -8,31 +8,51 @@ spec:
   image: openai-chat:latest
   supportedModes:
     - deployment
+    - statefulset
     - job
 
   configSchema:
     type: object
     properties:
-      model:
+      defaultModel:
         type: string
         description: "The OpenAI chat model to use (e.g., gpt-4, gpt-3.5-turbo)."
         default: "gpt-3.5-turbo"
-      temperature:
+      defaultTemperature:
         type: number
         description: "Controls randomness in the model's output."
         default: 0.7
-      systemPrompt:
+      defaultSystemPrompt:
         type: string
         description: "The initial system message to guide the model's behavior."
         default: "You are a helpful assistant."
+      tools:
+        type: array
+        description: "Optional function tools available to the model."
+        items:
+          type: object
+          properties:
+            name:
+              type: string
+            description:
+              type: string
+            parameters:
+              type: object
+      toolChoice:
+        type: string
+        description: "Tool choice behavior for Chat Completions. One of: auto, required, none."
+        enum: ["auto", "required", "none"]
+        default: "auto"
+      structuredToolName:
+        type: string
+        description: "Name of the function tool whose arguments should be emitted as structured output."
+      dispatchTools:
+        type: object
+        description: "Map of toolName -> storyName to dispatch tool calls as actionRequest automatically."
 
   inputSchema:
     type: object
     properties:
-      text:
-        type: string
-        description: "The user's latest message."
-        required: true
       history:
         type: array
         items:
@@ -40,9 +60,27 @@ spec:
           properties:
             role:
               type: string
-              enum: ["user", "assistant"]
+              enum: ["system", "developer", "user", "assistant"]
             content:
               type: string
+      temperature:
+        type: number
+        description: "Optional per-request temperature override."
+      model:
+        type: string
+        description: "Optional per-request model override."
+      systemPrompt:
+        type: string
+        description: "Optional per-request system prompt override."
+      userPrompt:
+        type: string
+        description: "The user's latest message."
+      developerPrompt:
+        type: string
+        description: "The developer's latest message."
+      assistantPrompt:
+        type: string
+        description: "The assistant's latest message."
 
   outputSchema:
     type: object
@@ -50,6 +88,9 @@ spec:
       text:
         type: string
         description: "The model's text response."
+      structured:
+        type: object
+        description: "Structured JSON emitted by a tool (e.g., validation/extract)."
       actionRequest:
         type: object
         description: "An optional structured request to trigger another story."
@@ -58,6 +99,16 @@ spec:
             type: string
           inputs:
             type: object
+      toolCalls:
+        type: array
+        description: "Raw tool calls emitted by the model."
+        items:
+          type: object
+          properties:
+            name:
+              type: string
+            arguments:
+              type: string
             
   secretSchema:
     # This logical name 'openai' is used in the Engram resource to map to a Kubernetes secret.
@@ -71,3 +122,15 @@ spec:
       # The controller expects the k8s secret to have a key named 'API_KEY'.
       expectedKeys:
         - "API_KEY"
+        - "BASE_URL"
+        - "ORG_ID"
+    azure:
+      required: false
+      description: "Azure OpenAI credentials (optional). If AZURE_ENDPOINT is set, Azure mode is used."
+      mountType: "env"
+      envPrefix: "AZURE_"
+      expectedKeys:
+        - "API_KEY"
+        - "ENDPOINT"
+        - "API_VERSION"
+        - "DEPLOYMENT"
