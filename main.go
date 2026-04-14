@@ -2,13 +2,20 @@ package main
 
 import (
 	"context"
-
-	chat "openai-chat/pkg/engram"
+	"log"
+	"os"
+	"os/signal"
+	"syscall"
 
 	sdk "github.com/bubustack/bubu-sdk-go"
+	chat "github.com/bubustack/openai-chat-engram/pkg/engram"
 )
 
 func main() {
-	// Run in batch mode by default. Operator sets execution mode.
-	_ = sdk.Run(context.Background(), chat.New())
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
+
+	if err := sdk.Start(ctx, chat.New()); err != nil {
+		log.Fatalf("openai-chat engram failed: %v", err)
+	}
 }

@@ -1,11 +1,13 @@
-apiVersion: catalog.bubu.sh/v1alpha1
+apiVersion: catalog.bubustack.io/v1alpha1
 kind: EngramTemplate
 metadata:
   name: openai-chat
+  annotations:
+    registry.bubustack.io/maturity: experimental
 spec:
-  version: "1.0.0"
+  version: 0.1.0
   description: "A conversational LLM engram using OpenAI's chat models."
-  image: openai-chat:latest
+  image: ghcr.io/bubustack/openai-chat-engram:0.1.0
   supportedModes:
     - deployment
     - statefulset
@@ -26,6 +28,110 @@ spec:
         type: string
         description: "The initial system message to guide the model's behavior."
         default: "You are a helpful assistant."
+      defaultTopP:
+        type: number
+        description: "Default nucleus sampling probability mass (top_p)."
+        default: 0.9
+      defaultMaxTokens:
+        type: integer
+        description: "Maximum total tokens (legacy)."
+        default: 0
+      defaultMaxCompletionTokens:
+        type: integer
+        description: "Maximum completion tokens (preferred)."
+        default: 0
+      defaultPresencePenalty:
+        type: number
+        description: "Presence penalty applied when no override is provided."
+        default: 0
+      defaultFrequencyPenalty:
+        type: number
+        description: "Frequency penalty applied when no override is provided."
+        default: 0
+      defaultReasoningEffort:
+        type: string
+        enum: [minimal, low, medium, high]
+        description: "Reasoning effort hint for reasoning models."
+      defaultServiceTier:
+        type: string
+        enum: [auto, default, flex, scale, priority]
+        description: "Preferred service tier when supported."
+      defaultVerbosity:
+        type: string
+        enum: [low, medium, high]
+        description: "Verbosity hint for models that support it."
+      defaultModalities:
+        type: array
+        description: "Default output modalities (e.g. ['text'], ['text','audio'])."
+        items:
+          type: string
+      defaultStopSequences:
+        type: array
+        description: "Sequences that will stop generation when encountered."
+        items:
+          type: string
+      defaultStore:
+        type: boolean
+        description: "Whether to allow OpenAI to store responses by default."
+      defaultParallelToolCalls:
+        type: boolean
+        description: "Enable parallel function/tool calls by default."
+      defaultLogprobs:
+        type: boolean
+        description: "Return token log probabilities by default."
+      defaultTopLogprobs:
+        type: integer
+        description: "Number of logprob candidates to include when logprobs are enabled."
+      defaultChoices:
+        type: integer
+        minimum: 1
+        description: "Default number of choices (OpenAI n parameter) to request."
+      defaultSeed:
+        type: integer
+        description: "Deterministic seed used when supported."
+      defaultPromptCacheKey:
+        type: string
+        description: "Prompt cache key used for OpenAI prompt caching."
+      defaultSafetyIdentifier:
+        type: string
+        description: "Default safety identifier for abuse monitoring."
+      defaultUser:
+        type: string
+        description: "Default user identifier forwarded to OpenAI."
+      defaultMetadata:
+        type: object
+        description: "Default metadata map sent with each request."
+        additionalProperties:
+          type: string
+      defaultLogitBias:
+        type: object
+        description: "Default logit bias map (token id -> bias)."
+        additionalProperties:
+          type: integer
+      responseFormat:
+        type: object
+        description: "Structured output configuration."
+        properties:
+          type:
+            type: string
+            enum: [text, json_object, json_schema]
+          jsonSchema:
+            type: object
+            properties:
+              name: { type: string }
+              description: { type: string }
+              strict: { type: boolean }
+              schema: { type: object }
+      audio:
+        type: object
+        description: "Default audio response configuration when using multimodal chat models."
+        properties:
+          format:
+            type: string
+            enum: [wav, aac, mp3, flac, opus, pcm16]
+          voice:
+            type: string
+            description: "Preferred audio voice (alloy, ash, nova, etc.)."
       tools:
         type: array
         description: "Optional function tools available to the model."
@@ -38,17 +144,58 @@ spec:
               type: string
             parameters:
               type: object
+      functions:
+        type: array
+        description: "Legacy function definitions sent via the deprecated `functions` parameter."
+        items:
+          type: object
+          properties:
+            name: { type: string }
+            description: { type: string }
+            parameters: { type: object }
       toolChoice:
         type: string
-        description: "Tool choice behavior for Chat Completions. One of: auto, required, none."
-        enum: ["auto", "required", "none"]
+        description: "Tool choice behavior: auto, required, none, or function:<name>."
         default: "auto"
+      functionCall:
+        type: string
+        description: "Legacy alias for toolChoice (auto, required, none, or function:<name>)."
+      allowedTools:
+        type: object
+        description: "Restrict tool usage to a curated set."
+        properties:
+          mode:
+            type: string
+            enum: [auto, required]
+            default: auto
+          tools:
+            type: array
+            items:
+              type: string
+      webSearch:
+        type: object
+        description: "Default web search options."
+        properties:
+          searchContextSize:
+            type: string
+            enum: [low, medium, high]
+          userLocation:
+            type: object
+            properties:
+              city: { type: string }
+              country: { type: string }
+              region: { type: string }
+              timezone: { type: string }
       structuredToolName:
         type: string
         description: "Name of the function tool whose arguments should be emitted as structured output."
       dispatchTools:
         type: object
         description: "Map of toolName -> storyName to dispatch tool calls as actionRequest automatically."
+      useResponsesAPI:
+        type: boolean
+        description: "Set true to route requests through OpenAI's Responses API instead of Chat Completions."
+        default: false
 
   inputSchema:
     type: object
@@ -81,6 +228,125 @@ spec:
       assistantPrompt:
         type: string
         description: "The assistant's latest message."
+      topP:
+        type: number
+      maxTokens:
+        type: integer
+      maxCompletionTokens:
+        type: integer
+      presencePenalty:
+        type: number
+      frequencyPenalty:
+        type: number
+      stop:
+        type: array
+        items:
+          type: string
+      modalities:
+        type: array
+        items:
+          type: string
+      store:
+        type: boolean
+      parallelToolCalls:
+        type: boolean
+      logprobs:
+        type: boolean
+      topLogprobs:
+        type: integer
+      seed:
+        type: integer
+      serviceTier:
+        type: string
+        enum: [auto, default, flex, scale, priority]
+      reasoningEffort:
+        type: string
+        enum: [minimal, low, medium, high]
+      verbosity:
+        type: string
+        enum: [low, medium, high]
+      responseFormat:
+        type: object
+        properties:
+          type:
+            type: string
+            enum: [text, json_object, json_schema]
+          jsonSchema:
+            type: object
+      metadata:
+        type: object
+        additionalProperties:
+          type: string
+      logitBias:
+        type: object
+        additionalProperties:
+          type: integer
+      audio:
+        type: object
+        properties:
+          format:
+            type: string
+          voice:
+            type: string
+      promptCacheKey:
+        type: string
+      safetyIdentifier:
+        type: string
+      user:
+        type: string
+      tools:
+        type: array
+        description: "Optional per-request tool overrides."
+        items:
+          type: object
+      toolChoice:
+        type: string
+        description: "Per-request tool choice override."
+      choices:
+        type: integer
+        minimum: 1
+        description: "Override for the OpenAI n parameter."
+      functions:
+        type: array
+        description: "Legacy alias for tools; merged with tools and deduplicated by name."
+        items:
+          type: object
+      functionCall:
+        type: string
+        description: "Legacy alias for toolChoice (auto, required, none, function:<name>)."
+      allowedTools:
+        type: object
+        description: "Restrict tool usage for the specific request."
+        properties:
+          mode:
+            type: string
+            enum: [auto, required]
+          tools:
+            type: array
+            items:
+              type: string
+      useResponsesAPI:
+        type: boolean
+        description: "Force this invocation to use the Responses API (true) or Chat Completions (false)."
+      prediction:
+        type: object
+        description: "Optional prediction hint to accelerate responses."
+        properties:
+          text: { type: string }
+      webSearch:
+        type: object
+        description: "Per-request web search options."
+        properties:
+          searchContextSize:
+            type: string
+            enum: [low, medium, high]
+          userLocation:
+            type: object
+            properties:
+              city: { type: string }
+              country: { type: string }
+              region: { type: string }
+              timezone: { type: string }
 
   outputSchema:
     type: object
@@ -114,16 +380,11 @@ spec:
     # This logical name 'openai' is used in the Engram resource to map to a Kubernetes secret.
     openai:
       required: true
-      description: "API key for OpenAI authentication."
+      description: "OpenAI credentials. Only API_KEY is required; other keys are optional."
       # Mount the secret's keys as environment variables.
       mountType: "env"
       # The key 'API_KEY' from the k8s secret will be available as 'OPENAI_API_KEY' in the pod.
       envPrefix: "OPENAI_"
-      # The controller expects the k8s secret to have a key named 'API_KEY'.
-      expectedKeys:
-        - "API_KEY"
-        - "BASE_URL"
-        - "ORG_ID"
     azure:
       required: false
       description: "Azure OpenAI credentials (optional). If AZURE_ENDPOINT is set, Azure mode is used."
@@ -134,3 +395,10 @@ spec:
         - "ENDPOINT"
         - "API_VERSION"
         - "DEPLOYMENT"
+  execution:
+    service:
+      ports:
+        - name: grpc
+          protocol: TCP
+          port: 50051
+          targetPort: 50051
