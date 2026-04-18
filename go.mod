@@ -4,7 +4,7 @@ go 1.26.2
 
 require (
 	github.com/bubustack/bubu-sdk-go v0.1.3
-	github.com/openai/openai-go/v2 v2.7.0
+	github.com/openai/openai-go/v2 v2.7.1
 )
 
 require (
