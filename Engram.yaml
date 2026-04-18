@@ -5,9 +5,9 @@ metadata:
   annotations:
     registry.bubustack.io/maturity: experimental
 spec:
-  version: 0.1.0
+  version: 0.1.0 # x-release-please-version
   description: "A conversational LLM engram using OpenAI's chat models."
-  image: ghcr.io/bubustack/openai-chat-engram:0.1.0
+  image: ghcr.io/bubustack/openai-chat-engram:0.1.0 # x-release-please-version
   supportedModes:
     - deployment
     - statefulset
