@@ -2,6 +2,7 @@ package engram
 
 import (
 	"context"
+	"log/slog"
 	"testing"
 	"time"
 
@@ -75,5 +76,22 @@ func TestStreamContinuesAfterMalformedPacket(t *testing.T) {
 
 	if err := engine.Stream(ctx, in, out); err != nil {
 		t.Fatalf("expected malformed packet to be skipped, got err=%v", err)
+	}
+}
+
+func TestDecodeStreamInputIgnoresIncompatibleOptionalResponseFormat(t *testing.T) {
+	msg := sdkengram.NewInboundMessage(sdkengram.StreamMessage{
+		Payload: []byte(`{"userPrompt":"translate this","responseFormat":"json","model":"gpt-4o-mini-transcribe"}`),
+	})
+
+	input, ok := decodeStreamInput(msg, slog.Default(), false)
+	if !ok {
+		t.Fatal("expected input to decode despite incompatible optional responseFormat")
+	}
+	if input.UserPrompt != "translate this" {
+		t.Fatalf("expected userPrompt to survive, got %#v", input.UserPrompt)
+	}
+	if input.ResponseFormat != nil {
+		t.Fatalf("expected incompatible responseFormat to be ignored, got %#v", input.ResponseFormat)
 	}
 }
