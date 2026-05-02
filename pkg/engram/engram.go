@@ -1,6 +1,7 @@
 package engram
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -243,8 +244,17 @@ func decodeStreamInput(msg sdkengram.InboundMessage, logger *slog.Logger, debug 
 	}
 	var input Input
 	if err := json.Unmarshal(raw, &input); err != nil {
-		logger.Warn("Failed to decode streaming payload", "error", err)
-		return Input{}, false
+		sanitized, ok := sanitizeStreamingInputJSON(raw)
+		if !ok {
+			logger.Warn("Failed to decode streaming payload", "error", err)
+			return Input{}, false
+		}
+		input = Input{}
+		if sanitizeErr := json.Unmarshal(sanitized, &input); sanitizeErr != nil {
+			logger.Warn("Failed to decode streaming payload", "error", sanitizeErr)
+			return Input{}, false
+		}
+		logger.Warn("Ignored incompatible optional fields in streaming payload", "error", err)
 	}
 	if shouldSkipStreamingInput(&input) {
 		if debug {
@@ -253,6 +263,35 @@ func decodeStreamInput(msg sdkengram.InboundMessage, logger *slog.Logger, debug 
 		return Input{}, false
 	}
 	return input, true
+}
+
+func sanitizeStreamingInputJSON(raw []byte) ([]byte, bool) {
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		return nil, false
+	}
+	changed := false
+	for _, key := range []string{"responseFormat", "audio", "prediction", "webSearch", "allowedTools"} {
+		value, ok := fields[key]
+		if !ok || isJSONObjectOrNull(value) {
+			continue
+		}
+		delete(fields, key)
+		changed = true
+	}
+	if !changed {
+		return nil, false
+	}
+	out, err := json.Marshal(fields)
+	if err != nil {
+		return nil, false
+	}
+	return out, true
+}
+
+func isJSONObjectOrNull(raw json.RawMessage) bool {
+	trimmed := bytes.TrimSpace(raw)
+	return bytes.Equal(trimmed, []byte("null")) || len(trimmed) > 0 && trimmed[0] == '{'
 }
 
 func buildStreamMetadata(source map[string]string, provider, model string) map[string]string {
