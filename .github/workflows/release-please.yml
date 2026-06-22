@@ -37,7 +37,7 @@ jobs:
           manifest-file: .github/.release-please-manifest.json
 
       - name: Checkout workflow source
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Detect release context
         id: publish
@@ -95,7 +95,7 @@ jobs:
 
       - name: Checkout release source
         if: ${{ steps.publish.outputs.publish == 'true' }}
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ steps.publish.outputs.checkout_ref }}
 
